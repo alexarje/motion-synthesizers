@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AM Synthesis – Motion Synthesizers</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <style>
+    :root { --demo-accent: #ef4444; --demo-accent-dim: rgba(239,68,68,0.18); }
+    #waveCanvas { height: 130px; background: #000; }
+    #specCanvas { height: 110px; background: #000; }
+    .dual-viz { display: flex; flex-direction: column; }
+    .viz-label {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      background: rgba(0,0,0,0.5);
+    }
+    .mode-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: var(--demo-accent-dim);
+      color: var(--demo-accent);
+      border: 1px solid rgba(239,68,68,0.3);
+    }
+  </style>
+</head>
+<body>
+
+<!-- Start overlay -->
+<div class="start-overlay" id="startOverlay">
+  <div class="start-card">
+    <div class="start-icon">📻</div>
+    <h2>AM Synthesis</h2>
+    <p>Move left/right to control the modulator frequency — from slow tremolo to audio-rate ring modulation. Move up/down to adjust modulation depth. Motion intensity sets the carrier frequency and volume.</p>
+    <button class="btn-start" id="startBtn">▶ Start Demo</button>
+    <p class="start-note">Camera optional — mouse fallback available.</p>
+  </div>
+</div>
+
+<nav class="navbar">
+  <a href="../index.html" class="back-link">← Motion Synthesizers</a>
+  <span class="demo-title">📻 AM Synthesis</span>
+  <span class="demo-subtitle">Amplitude modulation from motion</span>
+</nav>
+
+<div class="app-container">
+
+  <!-- Left column -->
+  <div class="left-col">
+
+    <div class="panel">
+      <div class="panel-header">Webcam Motion</div>
+      <div class="webcam-wrapper">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="motionCanvas" class="motion-canvas"></canvas>
+      </div>
+      <div class="status-row">
+        <span class="status-dot inactive" id="statusDot"></span>
+        <span id="statusText">Waiting…</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Motion → Parameters</div>
+      <div class="motion-params">
+        <div class="param-row">
+          <div class="param-label-row">
+            <span class="param-label">↔ X-axis</span>
+            <span class="param-value" id="xVal">0.50</span>
+          </div>
+          <div class="param-bar-track"><div class="param-bar-fill" id="xBar" style="width:50%"></div></div>
+          <span class="param-mapping">Modulator frequency (tremolo → ring mod)</span>
+        </div>
+        <div class="param-row">
+          <div class="param-label-row">
+            <span class="param-label">↕ Y-axis</span>
+            <span class="param-value" id="yVal">0.50</span>
+          </div>
+          <div class="param-bar-track"><div class="param-bar-fill" id="yBar" style="width:50%"></div></div>
+          <span class="param-mapping">Modulation depth 0–100%</span>
+        </div>
+        <div class="param-row">
+          <div class="param-label-row">
+            <span class="param-label">⚡ Motion</span>
+            <span class="param-value" id="magVal">0.00</span>
+          </div>
+          <div class="param-bar-track"><div class="param-bar-fill" id="magBar" style="width:0%"></div></div>
+          <span class="param-mapping">Carrier frequency + master volume</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right column -->
+  <div class="right-col">
+
+    <div class="panel">
+      <div class="panel-header">Waveform + Spectrum</div>
+      <div class="dual-viz">
+        <div class="viz-label">Time Domain (waveform)</div>
+        <canvas id="waveCanvas" width="600" height="130"></canvas>
+        <div class="viz-label">Frequency Domain (sidebands)</div>
+        <canvas id="specCanvas" width="600" height="110"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Current Values</div>
+      <div class="current-params">
+        <div class="current-param">
+          <div class="current-param-label">Carrier f_c</div>
+          <div class="current-param-value" id="fcDisplay">—<span class="current-param-unit">Hz</span></div>
+        </div>
+        <div class="current-param">
+          <div class="current-param-label">Modulator f_m</div>
+          <div class="current-param-value" id="fmDisplay">—<span class="current-param-unit">Hz</span></div>
+        </div>
+        <div class="current-param">
+          <div class="current-param-label">Depth m</div>
+          <div class="current-param-value" id="depthDisplay">—<span class="current-param-unit">%</span></div>
+        </div>
+        <div class="current-param">
+          <div class="current-param-label">Mode</div>
+          <div class="current-param-value" style="font-size:0.8rem"><span class="mode-badge" id="modeDisplay">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">How AM Synthesis Works</div>
+      <div class="education-panel">
+        <p>
+          In <strong>AM (Amplitude Modulation) synthesis</strong>, the amplitude (loudness) of a
+          <em>carrier</em> wave is varied by a <em>modulator</em> oscillator.
+        </p>
+        <div class="formula-box">output(t) = [1 + m · sin(2π·f_m·t)] · A · sin(2π·f_c·t)
+
+where  f_c = carrier frequency
+       f_m = modulator frequency
+       m   = modulation depth (0 = off, 1 = full AM)</div>
+        <p>
+          At <strong>sub-audio rates</strong> (f_m &lt; 20 Hz) this creates <em>tremolo</em> —
+          a rhythmic volume wobble. As f_m enters the audio range, sidebands appear at
+          <code>f_c ± f_m</code>, creating <em>ring modulation</em> with metallic tones.
+        </p>
+        <p>
+          Watch the <strong>waveform</strong> envelope change shape, and the
+          <strong>spectrum</strong> grow sidebands as you sweep the modulator frequency up with
+          a rightward movement.
+        </p>
+        <div class="controls-legend">
+          <div class="control-item"><span class="control-axis">↔ X</span><span class="control-desc">Modulator freq 0.5–500 Hz (left = tremolo, right = ring mod)</span></div>
+          <div class="control-item"><span class="control-axis">↕ Y</span><span class="control-desc">Modulation depth m 0–1 (up = shallow, down = deep)</span></div>
+          <div class="control-item"><span class="control-axis">⚡ Mag</span><span class="control-desc">Carrier freq 110–880 Hz + master volume</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="../js/motion.js"></script>
+<script>
+/* ── AM Synthesis Engine ─────────────────────────────────────── */
+
+let audioCtx, masterGain, analyser;
+let carrierOsc, modOsc, modDepthGain, vca;
+let started = false;
+let curFc = 330, curFm = 5, curDepth = 0.5;
+
+function setupSynth(ctx) {
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 4096;
+  analyser.smoothingTimeConstant = 0.8;
+
+  masterGain = ctx.createGain();
+  masterGain.gain.value = 0;
+
+  // Carrier oscillator
+  carrierOsc = ctx.createOscillator();
+  carrierOsc.type = 'sine';
+  carrierOsc.frequency.value = 330;
+
+  // VCA (volume-controlled amplifier)
+  vca = ctx.createGain();
+  vca.gain.value = 0.5; // base gain (DC = 1.0 + mod)
+
+  // Modulator oscillator
+  modOsc = ctx.createOscillator();
+  modOsc.type = 'sine';
+  modOsc.frequency.value = 5;
+
+  // Modulation depth scaler
+  modDepthGain = ctx.createGain();
+  modDepthGain.gain.value = 0.5; // depth
+
+  // AM routing: modulator → modDepthGain → vca.gain (adds to base)
+  modOsc.connect(modDepthGain);
+  modDepthGain.connect(vca.gain);
+
+  carrierOsc.connect(vca);
+  vca.connect(masterGain);
+  masterGain.connect(analyser);
+  analyser.connect(ctx.destination);
+
+  carrierOsc.start();
+  modOsc.start();
+}
+
+function setParams(x, y, mag) {
+  if (!started) return;
+
+  // Carrier: magnitude → 110..880 Hz (exponential)
+  const fc = 110 * Math.pow(8, mag);
+
+  // Modulator: X → 0.5..500 Hz (log)
+  const fm = 0.5 * Math.pow(1000, x);
+
+  // Depth: Y → 0..1 (move down = more depth)
+  const depth = 1 - y;
+
+  const vol = Math.min(1, mag * 2.5);
+  const now = audioCtx.currentTime;
+
+  carrierOsc.frequency.setTargetAtTime(fc,         now, 0.04);
+  modOsc.frequency.setTargetAtTime(fm,             now, 0.04);
+  // VCA base = 1 - depth (so at max depth the gain dips to 0)
+  vca.gain.setTargetAtTime(1 - depth,              now, 0.04);
+  modDepthGain.gain.setTargetAtTime(depth,         now, 0.04);
+  masterGain.gain.setTargetAtTime(vol * 0.5,       now, 0.05);
+
+  curFc = fc; curFm = fm; curDepth = depth;
+
+  const mode = fm < 20 ? 'Tremolo' : fm < 100 ? 'Transition' : 'Ring Mod';
+  document.getElementById('fcDisplay').childNodes[0].nodeValue  = Math.round(fc);
+  document.getElementById('fmDisplay').childNodes[0].nodeValue  = fm < 10 ? fm.toFixed(1) : Math.round(fm);
+  document.getElementById('depthDisplay').childNodes[0].nodeValue = Math.round(depth * 100);
+  document.getElementById('modeDisplay').textContent = mode;
+}
+
+/* ── Motion ─────────────────────────────────────────────────── */
+
+const detector = new MotionDetector({ onUpdate: ({ x, y, magnitude }) => {
+  document.getElementById('xVal').textContent = x.toFixed(2);
+  document.getElementById('yVal').textContent = y.toFixed(2);
+  document.getElementById('magVal').textContent = magnitude.toFixed(2);
+  document.getElementById('xBar').style.width   = (x * 100) + '%';
+  document.getElementById('yBar').style.width   = (y * 100) + '%';
+  document.getElementById('magBar').style.width = (magnitude * 100) + '%';
+  setParams(x, y, magnitude);
+}});
+
+/* ── Visualisation ───────────────────────────────────────────── */
+
+const waveCanvas = document.getElementById('waveCanvas');
+const waveCtx    = waveCanvas.getContext('2d');
+const specCanvas = document.getElementById('specCanvas');
+const specCtx    = specCanvas.getContext('2d');
+
+function drawViz() {
+  requestAnimationFrame(drawViz);
+  if (!analyser) return;
+
+  // Waveform
+  {
+    const W = waveCanvas.width, H = waveCanvas.height;
+    const buf = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(buf);
+
+    waveCtx.fillStyle = 'rgba(0,0,0,0.4)';
+    waveCtx.fillRect(0, 0, W, H);
+
+    waveCtx.beginPath();
+    waveCtx.strokeStyle = '#ef4444';
+    waveCtx.lineWidth = 2;
+    const step = W / buf.length;
+    for (let i = 0; i < buf.length; i++) {
+      const x = i * step;
+      const y = (1 - buf[i] / 255) * H;
+      if (i === 0) waveCtx.moveTo(x, y);
+      else waveCtx.lineTo(x, y);
+    }
+    waveCtx.stroke();
+
+    // Centre line
+    waveCtx.strokeStyle = 'rgba(239,68,68,0.15)';
+    waveCtx.lineWidth = 1;
+    waveCtx.beginPath();
+    waveCtx.moveTo(0, H/2); waveCtx.lineTo(W, H/2);
+    waveCtx.stroke();
+  }
+
+  // Spectrum
+  {
+    const W = specCanvas.width, H = specCanvas.height;
+    const fBuf = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(fBuf);
+
+    specCtx.fillStyle = 'rgba(0,0,0,0.4)';
+    specCtx.fillRect(0, 0, W, H);
+
+    const show = Math.floor(fBuf.length / 4);
+    const bw   = W / show;
+
+    for (let i = 0; i < show; i++) {
+      const v  = fBuf[i] / 255;
+      const bh = v * H;
+      specCtx.fillStyle = `hsl(0,${60 + v * 40}%,${25 + v * 45}%)`;
+      specCtx.fillRect(i * bw, H - bh, bw - 1, bh);
+    }
+
+    // Mark carrier + sidebands
+    if (audioCtx && curFm > 0) {
+      const binHz = audioCtx.sampleRate / analyser.fftSize;
+      [curFc, curFc + curFm, curFc - curFm].forEach((f, idx) => {
+        if (f <= 0) return;
+        const px = (f / binHz) / (analyser.frequencyBinCount / 4) * W;
+        specCtx.strokeStyle = idx === 0
+          ? 'rgba(255,200,50,0.9)'
+          : 'rgba(239,68,68,0.75)';
+        specCtx.lineWidth = 1.5;
+        specCtx.beginPath();
+        specCtx.moveTo(px, 0); specCtx.lineTo(px, H);
+        specCtx.stroke();
+      });
+    }
+  }
+}
+
+/* ── Start ───────────────────────────────────────────────────── */
+
+document.getElementById('startBtn').addEventListener('click', async () => {
+  document.getElementById('startOverlay').classList.add('hidden');
+
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  setupSynth(audioCtx);
+  drawViz();
+  started = true;
+
+  const video = document.getElementById('video');
+  const motionCanvas = document.getElementById('motionCanvas');
+  const ok = await detector.start(video, motionCanvas);
+
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  if (ok) {
+    dot.className = 'status-dot active';
+    txt.textContent = 'Camera active — move to play';
+  } else {
+    dot.className = 'status-dot inactive';
+    txt.textContent = 'No camera — move mouse over the video area';
+    detector.enableMouseFallback(document.querySelector('.webcam-wrapper'));
+  }
+});
+</script>
+</body>
+</html>

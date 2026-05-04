@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Physical Modelling – Motion Synthesizers</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <style>
+    :root { --demo-accent: #06b6d4; --demo-accent-dim: rgba(6,182,212,0.18); }
+    #vizCanvas   { height: 160px; background: #000; }
+    #stringCanvas { height: 80px;  background: #000; }
+    .dual-viz { display: flex; flex-direction: column; }
+    .viz-label {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      background: rgba(0,0,0,0.5);
+    }
+    .pluck-hint {
+      text-align: center;
+      padding: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .pluck-hint strong { color: var(--demo-accent); }
+    #pluckIndicator {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--demo-accent);
+      opacity: 0;
+      transition: opacity 0.05s;
+      vertical-align: middle;
+      margin-right: 0.3rem;
+      box-shadow: 0 0 8px var(--demo-accent);
+    }
+  </style>
+</head>
+<body>
+
+<!-- Start overlay -->
+<div class="start-overlay" id="startOverlay">
+  <div class="start-card">
+    <div class="start-icon">🎸</div>
+    <h2>Physical Modelling</h2>
+    <p>Pluck a virtual string with motion! Move to trigger plucks. Left/right controls the string brightness (pluck position); up/down changes the pitch.</p>
+    <button class="btn-start" id="startBtn">▶ Start Demo</button>
+    <p class="start-note">Camera optional — move your mouse over the area to pluck strings. Best with a webcam and expressive movements!</p>
+  </div>
+</div>
+
+<nav class="navbar">
+  <a href="../index.html" class="back-link">← Motion Synthesizers</a>
+  <span class="demo-title">🎸 Physical Modelling</span>
+  <span class="demo-subtitle">Karplus-Strong string synthesis</span>
+</nav>
+
+<div class="app-container">
+
+  <!-- Left column -->
+  <div class="left-col">
+
+    <div class="panel">
+      <div class="panel-header">Webcam Motion</div>
+      <div class="webcam-wrapper">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="motionCanvas" class="motion-canvas"></canvas>
+      </div>
+      <div class="status-row">
+        <span class="status-dot inactive" id="statusDot"></span>
+        <span id="statusText">Waiting…</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Motion → Parameters</div>
+      <div class="motion-params">
+        <div class="param-row">
+          <div class="param-label-row">
+            <span class="param-label">↔ X-axis</span>
+            <span class="param-value" id="xVal">0.50</span>
+          </div>
+          <div class="param-bar-track"><div class="param-bar-fill" id="xBar" style="width:50%"></div></div>
+          <span class="param-mapping">String brightness (dark → bright)</span>
+        </div>
+        <div class="param-row">
+          <div class="param-label-row">
+            <span class="param-label">↕ Y-axis</span>
+            <span class="param-value" id="yVal">0.50</span>
+          </div>
+          <div class="param-bar-track"><div class="param-bar-fill" id="yBar" style="width:50%"></div></div>
+          <span class="param-mapping">String pitch (low → high)</span>
+        </div>
+        <div class="param-row">
+          <div class="param-label-row">
+            <span class="param-label">⚡ Motion</span>
+            <span class="param-value" id="magVal">0.00</span>
+          </div>
+          <div class="param-bar-track"><div class="param-bar-fill" id="magBar" style="width:0%"></div></div>
+          <span class="param-mapping">Pluck trigger — fast movement = pluck!</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Pluck Status</div>
+      <div class="pluck-hint">
+        <span id="pluckIndicator"></span>
+        <span id="pluckText">Move faster to pluck the string</span>
+      </div>
+      <div class="current-params">
+        <div class="current-param">
+          <div class="current-param-label">Pluck Count</div>
+          <div class="current-param-value" id="pluckCount">0</div>
+        </div>
+        <div class="current-param">
+          <div class="current-param-label">Pitch</div>
+          <div class="current-param-value" id="freqDisplay">—<span class="current-param-unit">Hz</span></div>
+        </div>
+        <div class="current-param">
+          <div class="current-param-label">Brightness</div>
+          <div class="current-param-value" id="brightDisplay">—<span class="current-param-unit">Hz</span></div>
+        </div>
+        <div class="current-param">
+          <div class="current-param-label">Active Strings</div>
+          <div class="current-param-value" id="activeStrings">0</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right column -->
+  <div class="right-col">
+
+    <div class="panel">
+      <div class="panel-header">String Vibration + Spectrum</div>
+      <div class="dual-viz">
+        <div class="viz-label">String displacement (simulated)</div>
+        <canvas id="stringCanvas" width="600" height="80"></canvas>
+        <div class="viz-label">Frequency Spectrum</div>
+        <canvas id="vizCanvas" width="600" height="160"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">How Physical Modelling Works</div>
+      <div class="education-panel">
+        <p>
+          <strong>Physical modelling synthesis</strong> simulates the physics of real instruments
+          instead of manipulating waveforms abstractly. The
+          <strong>Karplus-Strong</strong> algorithm models a plucked string using a
+          <em>delay line</em> with feedback.
+        </p>
+        <div class="formula-box">Karplus-Strong algorithm:
+
+  1. Fill a short buffer with random noise  (the "pluck")
+  2. Feed the buffer into a recirculating delay line
+  3. Each pass through a low-pass filter  (string stiffness / damping)
+  4. Slightly reduce gain each cycle       (energy loss)
+
+  String frequency = 1 / delay_time
+  Decay  ∝  feedback gain × filter cutoff</div>
+        <p>
+          The delay line length sets the pitch. The low-pass filter smooths out
+          high frequencies over time — mimicking how real strings lose high-frequency
+          energy faster than low-frequency energy.
+        </p>
+        <p>
+          <strong>Pluck position</strong> is modelled by changing the filter cutoff:
+          plucking near the bridge (bright) vs near the middle (darker, rounder tone).
+        </p>
+        <div class="controls-legend">
+          <div class="control-item"><span class="control-axis">↔ X</span><span class="control-desc">String brightness / pluck position (dark tone ← → bright)</span></div>
+          <div class="control-item"><span class="control-axis">↕ Y</span><span class="control-desc">String pitch 80–880 Hz (move up = higher pitch)</span></div>
+          <div class="control-item"><span class="control-axis">⚡ Mag</span><span class="control-desc">Trigger: fast movement above threshold plucks the string</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="../js/motion.js"></script>
+<script>
+/* ── Karplus-Strong String Engine ───────────────────────────── */
+
+const PLUCK_THRESHOLD = 0.12;  // magnitude threshold to trigger a pluck
+const PLUCK_COOLDOWN  = 250;   // ms between allowed plucks (per-string)
+const MAX_STRINGS     = 6;     // polyphony
+
+let audioCtx, masterGain, analyser;
+let strings = [];        // active string nodes
+let started = false;
+let pluckCount = 0;
+let lastPluckTime = 0;
+
+// Motion params
+let curFreq = 220, curBright = 3000;
+
+function setupAudio(ctx) {
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 4096;
+  analyser.smoothingTimeConstant = 0.85;
+
+  masterGain = ctx.createGain();
+  masterGain.gain.value = 0.7;
+
+  masterGain.connect(analyser);
+  analyser.connect(ctx.destination);
+}
+
+/**
+ * Pluck a Karplus-Strong string.
+ * @param {number} frequency   String fundamental frequency (Hz)
+ * @param {number} brightness  Low-pass filter cutoff for pluck colour (Hz)
+ * @param {number} amplitude   Pluck strength 0-1
+ */
+function pluckString(frequency, brightness, amplitude) {
+  const ctx = audioCtx;
+  const sr  = ctx.sampleRate;
+
+  // Delay time = 1/frequency (capped to Web Audio min ~0.0001 s)
+  const delayTime = Math.max(0.0001, 1 / frequency);
+
+  // === Noise excitation buffer ===
+  const excitationLen = Math.ceil(sr * delayTime * 1.2);
+  const noiseBuffer   = ctx.createBuffer(1, excitationLen, sr);
+  const noiseData     = noiseBuffer.getChannelData(0);
+  // Cosine-window the noise (smoother pluck)
+  for (let i = 0; i < excitationLen; i++) {
+    const env    = 0.5 * (1 - Math.cos(Math.PI * i / excitationLen));
+    noiseData[i] = (Math.random() * 2 - 1) * env * amplitude;
+  }
+
+  const noiseSource = ctx.createBufferSource();
+  noiseSource.buffer = noiseBuffer;
+
+  // === Delay line ===
+  const delay = ctx.createDelay(2.0);
+  delay.delayTime.value = delayTime;
+
+  // === Loop low-pass filter (Karplus-Strong damping) ===
+  const loopFilter = ctx.createBiquadFilter();
+  loopFilter.type = 'lowpass';
+  loopFilter.frequency.value = brightness;
+  loopFilter.Q.value = 0.5;
+
+  // === Feedback gain (slightly below 1 for natural decay) ===
+  const feedback = ctx.createGain();
+  feedback.gain.value = 0.998;
+
+  // === Output gain (fade in fast, slow exponential decay) ===
+  const outGain = ctx.createGain();
+  outGain.gain.value = amplitude;
+
+  // Karplus-Strong feedback loop: delay → loopFilter → feedback → delay
+  delay.connect(loopFilter);
+  loopFilter.connect(feedback);
+  feedback.connect(delay);
+
+  // Output: tap from after the filter
+  loopFilter.connect(outGain);
+  outGain.connect(masterGain);
+
+  // Excitation into the delay
+  noiseSource.connect(delay);
+  noiseSource.start();
+  noiseSource.stop(ctx.currentTime + delayTime * 2);
+
+  // Auto-release after ~8 s (prevent memory leak for very low notes)
+  const releaseTime = ctx.currentTime + 8;
+  outGain.gain.setTargetAtTime(0, releaseTime, 0.5);
+
+  const stringObj = { delay, loopFilter, feedback, outGain, startTime: Date.now() };
+  strings.push(stringObj);
+
+  // Cull oldest strings beyond MAX_STRINGS
+  while (strings.length > MAX_STRINGS) {
+    const oldest = strings.shift();
+    oldest.outGain.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+  }
+
+  return stringObj;
+}
+
+function setParams(x, y, mag) {
+  if (!started) return;
+
+  // Pitch: Y → 80..880 Hz (exponential; up = higher)
+  curFreq   = 80 * Math.pow(11, 1 - y);
+  // Brightness: X → 800..8000 Hz
+  curBright = 800 * Math.pow(10, x);
+
+  // Pluck trigger: magnitude crossing threshold
+  const now = Date.now();
+  if (mag > PLUCK_THRESHOLD && now - lastPluckTime > PLUCK_COOLDOWN) {
+    lastPluckTime = now;
+    pluckCount++;
+    pluckString(curFreq, curBright, Math.min(1, mag * 2));
+
+    // Flash the pluck indicator
+    const ind = document.getElementById('pluckIndicator');
+    ind.style.opacity = '1';
+    setTimeout(() => { ind.style.opacity = '0'; }, 120);
+    document.getElementById('pluckText').textContent = `Plucked at ${Math.round(curFreq)} Hz!`;
+    document.getElementById('pluckCount').textContent = pluckCount;
+  }
+
+  document.getElementById('freqDisplay').childNodes[0].nodeValue  = Math.round(curFreq);
+  document.getElementById('brightDisplay').childNodes[0].nodeValue = Math.round(curBright);
+  document.getElementById('activeStrings').textContent = strings.filter(s => Date.now() - s.startTime < 8000).length;
+}
+
+/* ── Motion ─────────────────────────────────────────────────── */
+
+const detector = new MotionDetector({ onUpdate: ({ x, y, magnitude }) => {
+  document.getElementById('xVal').textContent = x.toFixed(2);
+  document.getElementById('yVal').textContent = y.toFixed(2);
+  document.getElementById('magVal').textContent = magnitude.toFixed(2);
+  document.getElementById('xBar').style.width   = (x * 100) + '%';
+  document.getElementById('yBar').style.width   = (y * 100) + '%';
+  document.getElementById('magBar').style.width = (magnitude * 100) + '%';
+  setParams(x, y, magnitude);
+}});
+
+/* ── Visualisation ───────────────────────────────────────────── */
+
+const stringCanvas = document.getElementById('stringCanvas');
+const stringCtx    = stringCanvas.getContext('2d');
+const vizCanvas    = document.getElementById('vizCanvas');
+const vizCtx       = vizCanvas.getContext('2d');
+
+let stringPhase = 0;
+
+function drawViz() {
+  requestAnimationFrame(drawViz);
+  if (!analyser) return;
+
+  const now = audioCtx ? audioCtx.currentTime : 0;
+
+  // ── Animated "string" visualisation ──────────────────────────
+  {
+    const W = stringCanvas.width, H = stringCanvas.height;
+    stringCtx.fillStyle = 'rgba(0,0,0,0.25)';
+    stringCtx.fillRect(0, 0, W, H);
+
+    // Get waveform data to drive the string amplitude
+    const waveBuf = new Uint8Array(512);
+    if (analyser) analyser.getByteTimeDomainData(waveBuf);
+
+    // Draw string anchors
+    stringCtx.fillStyle = 'rgba(6,182,212,0.6)';
+    stringCtx.fillRect(0, H/2 - 4, 8, 8);
+    stringCtx.fillRect(W - 8, H/2 - 4, 8, 8);
+
+    // Draw string as a sine-like wave derived from audio data
+    stringCtx.beginPath();
+    stringCtx.strokeStyle = '#06b6d4';
+    stringCtx.lineWidth   = 2;
+    const pts = 200;
+    for (let i = 0; i <= pts; i++) {
+      const t   = i / pts;
+      const px  = t * W;
+      const wavIdx = Math.floor(t * (waveBuf.length - 1));
+      const disp  = (waveBuf[wavIdx] / 128 - 1) * (H * 0.38);
+      const envel = Math.sin(Math.PI * t); // fixed ends
+      const py    = H / 2 + disp * envel;
+      if (i === 0) stringCtx.moveTo(px, py);
+      else         stringCtx.lineTo(px, py);
+    }
+    stringCtx.stroke();
+
+    // Pluck position indicator from X
+    const px = detector.x * W;
+    stringCtx.strokeStyle = 'rgba(255,200,50,0.5)';
+    stringCtx.lineWidth = 1;
+    stringCtx.setLineDash([3, 3]);
+    stringCtx.beginPath();
+    stringCtx.moveTo(px, 0);
+    stringCtx.lineTo(px, H);
+    stringCtx.stroke();
+    stringCtx.setLineDash([]);
+  }
+
+  // ── Frequency Spectrum ────────────────────────────────────────
+  {
+    const W = vizCanvas.width, H = vizCanvas.height;
+    const fBuf = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(fBuf);
+
+    vizCtx.fillStyle = 'rgba(0,0,0,0.4)';
+    vizCtx.fillRect(0, 0, W, H);
+
+    const show = Math.floor(fBuf.length / 3);
+    const bw   = W / show;
+
+    for (let i = 0; i < show; i++) {
+      const v  = fBuf[i] / 255;
+      const bh = v * H;
+      vizCtx.fillStyle = `hsl(${180 + v * 40},${60 + v*30}%,${20 + v * 50}%)`;
+      vizCtx.fillRect(i * bw, H - bh, bw - 1, bh);
+    }
+
+    // Mark harmonics of current frequency
+    if (audioCtx && curFreq > 0) {
+      const binHz = audioCtx.sampleRate / analyser.fftSize;
+      for (let n = 1; n <= 12; n++) {
+        const f  = curFreq * n;
+        if (f > audioCtx.sampleRate / 2) break;
+        const px = (f / binHz) / (analyser.frequencyBinCount / 3) * W;
+        const a  = Math.max(0, 1 - (n - 1) * 0.1);
+        vizCtx.strokeStyle = `rgba(6,182,212,${a * 0.7})`;
+        vizCtx.lineWidth   = 1;
+        vizCtx.beginPath();
+        vizCtx.moveTo(px, 0); vizCtx.lineTo(px, H);
+        vizCtx.stroke();
+      }
+    }
+  }
+}
+
+/* ── Start ───────────────────────────────────────────────────── */
+
+document.getElementById('startBtn').addEventListener('click', async () => {
+  document.getElementById('startOverlay').classList.add('hidden');
+
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  setupAudio(audioCtx);
+  drawViz();
+  started = true;
+
+  // Play a welcome chord
+  setTimeout(() => {
+    [220, 330, 440, 550].forEach((f, i) => {
+      setTimeout(() => pluckString(f, 3000, 0.6), i * 120);
+    });
+  }, 300);
+
+  const video = document.getElementById('video');
+  const motionCanvas = document.getElementById('motionCanvas');
+  const ok = await detector.start(video, motionCanvas);
+
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  if (ok) {
+    dot.className = 'status-dot active';
+    txt.textContent = 'Camera active — move fast to pluck!';
+  } else {
+    dot.className = 'status-dot inactive';
+    txt.textContent = 'No camera — move mouse quickly over the video area';
+    detector.enableMouseFallback(document.querySelector('.webcam-wrapper'));
+  }
+});
+</script>
+</body>
+</html>
