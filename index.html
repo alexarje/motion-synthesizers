@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motion Synthesizers</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    body { background: var(--bg); }
+    .hero { padding: 5rem 1.5rem 2rem; }
+    .hero h1 { font-size: 3.25rem; }
+    .section-label {
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+    .how-it-works {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 0 1.5rem 3rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .how-step {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+    .how-step-num {
+      font-size: 1.75rem;
+      font-weight: 900;
+      color: var(--demo-accent);
+      opacity: 0.4;
+      margin-bottom: 0.5rem;
+    }
+    .how-step h3 { font-size: 0.875rem; font-weight: 700; margin-bottom: 0.375rem; }
+    .how-step p { font-size: 0.8rem; color: var(--text-muted); line-height: 1.55; }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Motion Synthesizers</h1>
+  <p>Control sound with your body. Five browser-based synthesizers driven by webcam motion — each demonstrating a different synthesis technique.</p>
+  <div class="hero-badges">
+    <span class="badge">🎥 Webcam Motion Control</span>
+    <span class="badge">🔊 Web Audio API</span>
+    <span class="badge">🎓 Educational</span>
+    <span class="badge">📱 No Install</span>
+  </div>
+</div>
+
+<p class="section-label">Choose a Synthesis Type</p>
+
+<div class="demos-grid">
+
+  <a class="demo-card" href="demos/additive.html" style="--card-accent:#f59e0b">
+    <div class="demo-card-icon">🌈</div>
+    <h3>Additive Synthesis</h3>
+    <p>Build complex tones by layering pure sine waves (harmonics). Any sound can be created by summing enough sine waves.</p>
+    <div class="demo-card-tags">
+      <span class="tag">Harmonics</span>
+      <span class="tag">Fourier</span>
+      <span class="tag">Timbre</span>
+    </div>
+  </a>
+
+  <a class="demo-card" href="demos/subtractive.html" style="--card-accent:#6366f1">
+    <div class="demo-card-icon">🌊</div>
+    <h3>Subtractive Synthesis</h3>
+    <p>Carve away frequencies from a harmonically rich wave using resonant filters. The classic synth sound.</p>
+    <div class="demo-card-tags">
+      <span class="tag">Filters</span>
+      <span class="tag">Resonance</span>
+      <span class="tag">Sawtooth</span>
+    </div>
+  </a>
+
+  <a class="demo-card" href="demos/fm.html" style="--card-accent:#10b981">
+    <div class="demo-card-icon">📡</div>
+    <h3>FM Synthesis</h3>
+    <p>Modulate the frequency of one oscillator with another. Small changes in the modulation index produce dramatic timbral shifts.</p>
+    <div class="demo-card-tags">
+      <span class="tag">Sidebands</span>
+      <span class="tag">Modulation Index</span>
+      <span class="tag">C:M Ratio</span>
+    </div>
+  </a>
+
+  <a class="demo-card" href="demos/am.html" style="--card-accent:#ef4444">
+    <div class="demo-card-icon">📻</div>
+    <h3>AM Synthesis</h3>
+    <p>Modulate the amplitude of a carrier wave. At low rates it creates tremolo; at audio rates it creates ring modulation.</p>
+    <div class="demo-card-tags">
+      <span class="tag">Tremolo</span>
+      <span class="tag">Ring Mod</span>
+      <span class="tag">Sidebands</span>
+    </div>
+  </a>
+
+  <a class="demo-card" href="demos/physical.html" style="--card-accent:#06b6d4">
+    <div class="demo-card-icon">🎸</div>
+    <h3>Physical Modelling</h3>
+    <p>Simulate a plucked string using the Karplus-Strong algorithm — a feedback delay line that mimics a real vibrating string.</p>
+    <div class="demo-card-tags">
+      <span class="tag">Karplus-Strong</span>
+      <span class="tag">Delay Line</span>
+      <span class="tag">String</span>
+    </div>
+  </a>
+
+</div>
+
+<p class="section-label">How It Works</p>
+<div class="how-it-works">
+  <div class="how-step">
+    <div class="how-step-num">01</div>
+    <h3>Grant Camera Access</h3>
+    <p>Each demo asks for webcam access. If declined, you can use your mouse to control the synth instead.</p>
+  </div>
+  <div class="how-step">
+    <div class="how-step-num">02</div>
+    <h3>Move to Control</h3>
+    <p>Left/right movement maps to one parameter; up/down to another; overall motion intensity to a third.</p>
+  </div>
+  <div class="how-step">
+    <div class="how-step-num">03</div>
+    <h3>See &amp; Hear</h3>
+    <p>Watch the real-time audio visualisation and parameter display while you explore each synthesis type.</p>
+  </div>
+</div>
+
+<footer class="footer">
+  Motion Synthesizers · Web Audio API + MediaDevices · No server required
+</footer>
+
+</body>
+</html>

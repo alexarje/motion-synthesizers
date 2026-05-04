@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Additive Synthesis – Motion Synthesizers</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <style>
+    :root { --demo-accent: #f59e0b; --demo-accent-dim: rgba(245,158,11,0.18); }
+    #vizCanvas { height: 220px; background: #000; }
+    .harmonic-bars {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 4px;
+      height: 80px;
+      padding: 0.5rem 1rem;
+      background: var(--bg-input);
+    }
+    .h-bar-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; }
+    .h-bar { width: 100%; background: var(--demo-accent); border-radius: 2px 2px 0 0; transition: height 0.06s; min-height: 2px; }
+    .h-bar-label { font-size: 0.55rem; color: var(--text-muted); font-family: var(--mono); }
+  </style>
+</head>
+<body>
+
+<!-- Start overlay -->
+<div class="start-overlay" id="startOverlay">
+  <div class="start-card">
+    <div class="start-icon">🌈</div>
+    <h2>Additive Synthesis</h2>
+    <p>Control a bank of sine-wave harmonics with your body movements. Left/right selects the harmonic profile; up/down sets the pitch; motion intensity controls volume.</p>
+    <button class="btn-start" id="startBtn">▶ Start Demo</button>
+    <p class="start-note">Requires microphone-free camera access. Mouse fallback available if camera is denied.</p>
+  </div>
+</div>
+
+<nav class="navbar">
+  <a href="../index.html" class="back-link">← Motion Synthesizers</a>
+  <span class="demo-title">🌈 Additive Synthesis</span>
+  <span class="demo-subtitle">Sine harmonics from motion</span>
+</nav>
+
+<div class="app-container">
+
+  <!-- Left column -->
+  <div class="left-col">
+
+    <div class="panel">
+      <div class="panel-header">Webcam Motion</div>
+      <div class="webcam-wrapper">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="motionCanvas" class="motion-canvas"></canvas>
+      </div>
+      <div class="status-row">
+        <span class="status-dot inactive" id="statusDot"></span>
+        <span id="statusText">Waiting…</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Motion → Parameters</div>
+      <div class="motion-params">
+        <div class="param-row">
+          <div class="param-label-row">
+            <span class="param-label">↔ X-axis</span>
+            <span class="param-value" id="xVal">0.50</span>
+          </div>
+          <div class="param-bar-track"><div class="param-bar-fill" id="xBar" style="width:50%"></div></div>
+          <span class="param-mapping">Harmonic profile (pure → bright → bell)</span>
+        </div>
+        <div class="param-row">
+          <div class="param-label-row">
+            <span class="param-label">↕ Y-axis</span>
+            <span class="param-value" id="yVal">0.50</span>
+          </div>
+          <div class="param-bar-track"><div class="param-bar-fill" id="yBar" style="width:50%"></div></div>
+          <span class="param-mapping">Fundamental frequency (low → high)</span>
+        </div>
+        <div class="param-row">
+          <div class="param-label-row">
+            <span class="param-label">⚡ Motion</span>
+            <span class="param-value" id="magVal">0.00</span>
+          </div>
+          <div class="param-bar-track"><div class="param-bar-fill" id="magBar" style="width:0%"></div></div>
+          <span class="param-mapping">Master volume</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right column -->
+  <div class="right-col">
+
+    <div class="panel">
+      <div class="panel-header">Waveform</div>
+      <div class="viz-wrapper">
+        <canvas id="vizCanvas" width="600" height="220"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Harmonic Amplitudes</div>
+      <div class="harmonic-bars" id="harmonicBars">
+        <!-- filled by JS -->
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Current Values</div>
+      <div class="current-params">
+        <div class="current-param">
+          <div class="current-param-label">Fundamental</div>
+          <div class="current-param-value" id="freqDisplay">—<span class="current-param-unit">Hz</span></div>
+        </div>
+        <div class="current-param">
+          <div class="current-param-label">Profile</div>
+          <div class="current-param-value" id="profileDisplay">—</div>
+        </div>
+        <div class="current-param">
+          <div class="current-param-label">Harmonics</div>
+          <div class="current-param-value" id="harmonicsDisplay">—</div>
+        </div>
+        <div class="current-param">
+          <div class="current-param-label">Volume</div>
+          <div class="current-param-value" id="volDisplay">—<span class="current-param-unit">%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">How Additive Synthesis Works</div>
+      <div class="education-panel">
+        <p>
+          <strong>Additive synthesis</strong> is based on the Fourier theorem: any periodic sound can
+          be recreated by summing enough sine waves (called <strong>partials</strong> or <strong>harmonics</strong>).
+        </p>
+        <div class="formula-box">output(t) = Σ  Aₙ · sin(2π · n · f₀ · t)
+         n=1…N
+
+where  f₀ = fundamental frequency
+       Aₙ = amplitude of the n-th harmonic</div>
+        <p>
+          Moving <strong>left/right</strong> morphs between different amplitude envelopes (profiles):
+          a pure sine (only harmonic 1), triangle (odd harmonics ∝ 1/n²), square
+          (odd harmonics ∝ 1/n), and sawtooth (all harmonics ∝ 1/n).
+        </p>
+        <p>
+          Moving <strong>up/down</strong> changes the fundamental frequency from 110 Hz (low A) to
+          880 Hz (high A). Moving creates volume — stay still and it fades to silence.
+        </p>
+        <div class="controls-legend">
+          <div class="control-item"><span class="control-axis">↔ X</span><span class="control-desc">Harmonic profile (pure sine → sawtooth → bright → bell)</span></div>
+          <div class="control-item"><span class="control-axis">↕ Y</span><span class="control-desc">Fundamental pitch 110–880 Hz (move up = higher)</span></div>
+          <div class="control-item"><span class="control-axis">⚡ Mag</span><span class="control-desc">Master volume — move more to sound louder</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div><!-- app-container -->
+
+<script src="../js/motion.js"></script>
+<script>
+/* ── Additive Synthesis Engine ──────────────────────────────── */
+
+const NUM_HARMONICS = 16;
+
+// Harmonic amplitude profiles  [ A1, A2, A3, … A16 ]
+// Each profile is a function index → amplitude (0-1)
+const PROFILES = [
+  { name: 'Pure Sine',  fn: n => n === 1 ? 1 : 0 },
+  { name: 'Triangle',   fn: n => (n % 2 === 1) ? 1 / (n * n) : 0 },
+  { name: 'Square',     fn: n => (n % 2 === 1) ? 1 / n : 0 },
+  { name: 'Sawtooth',   fn: n => 1 / n },
+  { name: 'Bright Saw', fn: n => 1 / Math.sqrt(n) },
+  { name: 'Bell',       fn: n => Math.exp(-0.4 * (n - 1)) * (n % 3 !== 0 ? 1 : 0.5) },
+  { name: 'Odd Bright', fn: n => (n % 2 === 1) ? 1 / Math.sqrt(n) : 0.1 / n },
+];
+
+let audioCtx, masterGain, analyser;
+let oscillators = [];  // array of { osc, gain }
+let started = false;
+
+function setupSynth(ctx) {
+  analyser    = ctx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.85;
+
+  masterGain  = ctx.createGain();
+  masterGain.gain.value = 0;
+
+  masterGain.connect(analyser);
+  analyser.connect(ctx.destination);
+
+  for (let n = 1; n <= NUM_HARMONICS; n++) {
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 220 * n;
+    gain.gain.value = 0;
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+    oscillators.push({ osc, gain });
+  }
+}
+
+function setParams(x, y, mag) {
+  if (!started) return;
+
+  // Fundamental: Y maps 0→1 to 110→880 Hz (exponential)
+  const fundamental = 110 * Math.pow(8, 1 - y); // y=0 → 880, y=1 → 110
+
+  // Profile: X selects and interpolates between adjacent profiles
+  const profileIdx = x * (PROFILES.length - 1);
+  const p0 = Math.floor(profileIdx);
+  const p1 = Math.min(PROFILES.length - 1, p0 + 1);
+  const t  = profileIdx - p0;
+
+  let harmonicAmps = [];
+  for (let n = 1; n <= NUM_HARMONICS; n++) {
+    const a0 = PROFILES[p0].fn(n);
+    const a1 = PROFILES[p1].fn(n);
+    harmonicAmps.push(a0 * (1 - t) + a1 * t);
+  }
+
+  // Normalise so loudest harmonic = 1
+  const maxA = Math.max(...harmonicAmps, 0.001);
+  harmonicAmps = harmonicAmps.map(a => a / maxA);
+
+  // Apply to oscillators
+  const now = audioCtx.currentTime;
+  for (let i = 0; i < NUM_HARMONICS; i++) {
+    oscillators[i].osc.frequency.setTargetAtTime(fundamental * (i + 1), now, 0.03);
+    oscillators[i].gain.gain.setTargetAtTime(harmonicAmps[i] * 0.5, now, 0.05);
+  }
+
+  // Master volume follows motion magnitude
+  const vol = Math.min(1, mag * 2.5);
+  masterGain.gain.setTargetAtTime(vol * 0.6, now, 0.05);
+
+  // ── UI updates ──
+  document.getElementById('freqDisplay').childNodes[0].nodeValue = Math.round(fundamental);
+  document.getElementById('profileDisplay').textContent =
+    t < 0.5 ? PROFILES[p0].name : PROFILES[p1].name;
+  document.getElementById('harmonicsDisplay').textContent = NUM_HARMONICS;
+  document.getElementById('volDisplay').childNodes[0].nodeValue = Math.round(vol * 100);
+
+  // Update harmonic bar chart
+  const bars = document.querySelectorAll('.h-bar');
+  bars.forEach((b, i) => {
+    b.style.height = (harmonicAmps[i] * 72) + 'px';
+  });
+}
+
+/* ── Motion ─────────────────────────────────────────────────── */
+
+const detector = new MotionDetector({ onUpdate: ({ x, y, magnitude }) => {
+  document.getElementById('xVal').textContent = x.toFixed(2);
+  document.getElementById('yVal').textContent = y.toFixed(2);
+  document.getElementById('magVal').textContent = magnitude.toFixed(2);
+  document.getElementById('xBar').style.width   = (x * 100) + '%';
+  document.getElementById('yBar').style.width   = (y * 100) + '%';
+  document.getElementById('magBar').style.width = (magnitude * 100) + '%';
+  setParams(x, y, magnitude);
+}});
+
+/* ── Visualisation ───────────────────────────────────────────── */
+
+const vizCanvas = document.getElementById('vizCanvas');
+const vizCtx    = vizCanvas.getContext('2d');
+
+function drawViz() {
+  requestAnimationFrame(drawViz);
+  if (!analyser) return;
+
+  const W = vizCanvas.width;
+  const H = vizCanvas.height;
+  const buf = new Uint8Array(analyser.fftSize);
+  analyser.getByteTimeDomainData(buf);
+
+  vizCtx.fillStyle = 'rgba(0,0,0,0.35)';
+  vizCtx.fillRect(0, 0, W, H);
+
+  vizCtx.beginPath();
+  vizCtx.strokeStyle = '#f59e0b';
+  vizCtx.lineWidth = 2;
+  const step = W / buf.length;
+  for (let i = 0; i < buf.length; i++) {
+    const x = i * step;
+    const y = (buf[i] / 128) * (H / 2);
+    if (i === 0) vizCtx.moveTo(x, y);
+    else vizCtx.lineTo(x, y);
+  }
+  vizCtx.stroke();
+
+  // Centre line
+  vizCtx.strokeStyle = 'rgba(245,158,11,0.15)';
+  vizCtx.lineWidth = 1;
+  vizCtx.beginPath();
+  vizCtx.moveTo(0, H / 2); vizCtx.lineTo(W, H / 2);
+  vizCtx.stroke();
+}
+
+/* ── Harmonic bar DOM init ───────────────────────────────────── */
+
+function buildHarmonicBars() {
+  const cont = document.getElementById('harmonicBars');
+  cont.innerHTML = '';
+  for (let n = 1; n <= NUM_HARMONICS; n++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'h-bar-wrap';
+    const bar = document.createElement('div');
+    bar.className = 'h-bar';
+    bar.style.height = '2px';
+    const lbl = document.createElement('div');
+    lbl.className = 'h-bar-label';
+    lbl.textContent = n;
+    wrap.appendChild(bar);
+    wrap.appendChild(lbl);
+    cont.appendChild(wrap);
+  }
+}
+
+/* ── Start ───────────────────────────────────────────────────── */
+
+document.getElementById('startBtn').addEventListener('click', async () => {
+  document.getElementById('startOverlay').classList.add('hidden');
+
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  setupSynth(audioCtx);
+  buildHarmonicBars();
+  drawViz();
+  started = true;
+
+  const video = document.getElementById('video');
+  const motionCanvas = document.getElementById('motionCanvas');
+  const ok = await detector.start(video, motionCanvas);
+
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  if (ok) {
+    dot.className = 'status-dot active';
+    txt.textContent = 'Camera active — move to play';
+  } else {
+    dot.className = 'status-dot inactive';
+    txt.textContent = 'No camera — move mouse over the video area';
+    detector.enableMouseFallback(document.querySelector('.webcam-wrapper'));
+  }
+});
+</script>
+</body>
+</html>
