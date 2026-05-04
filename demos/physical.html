@@ -269,7 +269,7 @@ function pluckString(frequency, brightness, amplitude) {
   // Excitation into the delay
   noiseSource.connect(delay);
   noiseSource.start();
-  noiseSource.stop(ctx.currentTime + sr * delayTime * 2 / sr);
+  noiseSource.stop(ctx.currentTime + delayTime * 2);
 
   // Auto-release after ~8 s (prevent memory leak for very low notes)
   const releaseTime = ctx.currentTime + 8;
